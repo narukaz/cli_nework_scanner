@@ -8,13 +8,17 @@ pub struct Args{
     pub target: String,
     /// The port range to scan (e.g., "1-1024", "80,443", or "1-100,8080")
     #[arg(short='p', long,default_value="1-1024")]
-    pub port: String,
+    pub ports: String,
     /// The number of concurrent scanning threads to use
     #[arg(short = 't', long, default_value_t = 100, value_parser = clap::value_parser!(u16).range(1..=5000) )]
     pub threads: u16,
     /// The timeout in milliseconds for each port scan
     #[arg(short = 'm', long, default_value_t = 5000)]
     pub timeout: u64,
+    #[arg(long)]
+    pub banners: bool,
+    #[arg(long, default_value_t = 100)]
+    pub concurrency:usize
 }
 
 pub fn parse_ports(port_arg:&str)->Result<Vec<u16>,String>{
