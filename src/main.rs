@@ -12,16 +12,22 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tokio::io::AsyncReadExt;
 use std::str::FromStr;
+use tabled::{settings::Style, Table, Tabled};
 
-
-
-#[derive(Debug)]
+#[derive(Debug,Tabled)]
 struct ScanResult{
+    #[tabled(rename = "HOST")]
     pub host: IpAddr,
+    #[tabled(rename = "PORT")]
     pub port : u16,
+    #[tabled(rename = "STATE")]
     pub state:PortState,
+    #[tabled(rename = "BANNER", display_with = "format_banner")]
     pub banner: Option<String>
 }
+
+
+
 #[derive(Debug,Clone,Copy,PartialEq,Eq)]
 enum PortState{
     Open,Closed,Filtered
@@ -35,9 +41,13 @@ impl fmt::Display for PortState{
             PortState::Filtered => write!(f,"Filtered"),
 
         }
+        // write!()
     }
 }
 
+fn format_banner(banner: &Option<String>) -> String {
+    banner.clone().unwrap_or_else(|| "".to_string())
+}
 async fn grab_banner(target: IpAddr, port:u16, timeout: Duration) -> Option<String>{
     let addr = SocketAddr::new(target,port);
     let stream = match tokio::time::timeout(timeout,TcpStream::connect(&addr)).await {
@@ -163,6 +173,7 @@ async fn main() {
     const CONCURRENCY:usize = 100;
     let semaphore = Arc::new(Semaphore::new(args.concurrency));
     let mut tasks: Vec<JoinHandle<ScanResult>> = vec![];
+
     for target_ip in target_ips {
     for port in &ports {
         let port = *port;
@@ -179,22 +190,40 @@ async fn main() {
 
     let  mut results = Vec::new();
     for task in tasks {
-        let result  = task.await.unwrap();
-        results.push(result);
+        results.push(task.await.unwrap());
     }
     results.sort_by_key(|r| (r.host, r.port));
 
-    println!("\nScan results:");
-    for result in results {
-        if result.state == PortState::Open{
-           let banner_text = result.banner.as_deref().unwrap_or("");
-            println!(
-                "{:<15} {:<5} {:<8} {}",
-                result.host,
-                result.port,
-                result.state.to_string(),
-                banner_text
-            );
-        }
+
+    // println!("\nScan results:");
+    // for result in &results {
+    //     if result.state == PortState::Open{
+    //        let banner_text = result.banner.as_deref().unwrap_or("");
+    //         println!(
+    //             "{:<15} {:<5} {:<8} {}",
+    //             result.host,
+    //             result.port,
+    //             result.state.to_string(),
+    //             banner_text
+    //         );
+    //     }
+    //
+    // }
+    let open_ports: Vec<ScanResult> = results
+        .into_iter()
+        .filter(|r| r.state == PortState::Open)
+        .collect();
+
+    if !open_ports.is_empty(){
+        println!("\n Scan result (Open ports)");
+        let mut table = Table::new(open_ports);
+        table.with(Style::modern());
+        println!("{} :", table);
+
+    }else{
+        println!("\n Scan complete. No open port found.");
     }
+
 }
+
+
