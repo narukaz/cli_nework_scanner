@@ -5,6 +5,8 @@ use std::fmt;
 use clap::Parser;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::time::Duration;
+use std::fs;
+use std::path::PathBuf;
 use tokio::net::TcpStream;
 use std::sync::Arc;
 use ipnet::IpNet;
@@ -12,9 +14,11 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 use tokio::io::AsyncReadExt;
 use std::str::FromStr;
+use serde::Serialize;
 use tabled::{settings::Style, Table, Tabled};
 
-#[derive(Debug,Tabled)]
+
+#[derive(Debug,Tabled,Serialize)]
 struct ScanResult{
     #[tabled(rename = "HOST")]
     pub host: IpAddr,
@@ -28,7 +32,7 @@ struct ScanResult{
 
 
 
-#[derive(Debug,Clone,Copy,PartialEq,Eq)]
+#[derive(Debug,Clone,Copy,PartialEq,Eq,Serialize)]
 enum PortState{
     Open,Closed,Filtered
 }
@@ -130,6 +134,13 @@ async fn grab_banner(target: IpAddr, port:u16, timeout: Duration) -> Option<Stri
             }
         }
  }
+
+fn write_results_to_json(file_path : &PathBuf, results: &[ScanResult] ) -> Result<(),std::io::Error>{
+    let json_output = serde_json::to_string_pretty(results)?;
+    fs::write(file_path,json_output)?;
+    println!("\nScan results written to {}", file_path.display());
+    Ok(())
+}
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
@@ -209,10 +220,13 @@ async fn main() {
     //     }
     //
     // }
-    let open_ports: Vec<ScanResult> = results
-        .into_iter()
+
+
+    let open_ports: Vec<&ScanResult> = results
+        .iter()
         .filter(|r| r.state == PortState::Open)
         .collect();
+
 
     if !open_ports.is_empty(){
         println!("\n Scan result (Open ports)");
@@ -222,6 +236,13 @@ async fn main() {
 
     }else{
         println!("\n Scan complete. No open port found.");
+    }
+
+    if let Some(file_path) = args.json{
+        match write_results_to_json(&file_path , &results){
+            Ok(_)=> {},
+            Err(e) => eprintln!("Error writing to JSON file: {}", e),
+        }
     }
 
 }

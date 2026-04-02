@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::path::PathBuf;
 
 
 #[derive(Parser,Debug)]
@@ -18,7 +19,9 @@ pub struct Args{
     #[arg(long)]
     pub banners: bool,
     #[arg(long, default_value_t = 100)]
-    pub concurrency:usize
+    pub concurrency:usize,
+    #[arg(long)]
+    pub json: Option<PathBuf>
 }
 
 pub fn parse_ports(port_arg:&str)->Result<Vec<u16>,String>{
